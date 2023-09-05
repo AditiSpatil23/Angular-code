@@ -2,63 +2,50 @@ trigger:
 - master
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: windows-latest
 
 variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
 
+  #Replace these variables to suit your application
+  projectName: 'WeatherService'
+  websiteName: 'WeatherService'
+  appPoolName: 'WeatherService'
+
 stages:
-- stage: Build
+- stage: 'Build'
+  displayName: 'Build'
   jobs:
-  - job: BuildDotNet
-    displayName: 'Build .NET Framework Application'
-    pool:
-      vmImage: 'windows-latest'
-    steps:
-    - task: UseDotNet@2
-      inputs:
-        packageType: 'sdk'
-        installationPath: $(Agent.ToolsDirectory)/dotnet
-        version: '4.x'  # Use the desired .NET Framework version
-      displayName: 'Use .NET Framework SDK'
+     - job: 
+       steps:  
+        - task: DotNetCoreCLI@2
+          displayName: 'dotnet restore'
+          inputs:
+            command: 'restore'
+            projects: '*.sln'
 
-    - script: |
-        nuget restore YourSolution.sln
-        msbuild YourSolution.sln /p:Configuration=Release /p:Platform="Any CPU"
-      displayName: 'Build .NET Framework Application'
+        - task: DotNetCoreCLI@2
+          displayName: Build
+          inputs:
+            command: 'build'
+            projects: '*.sln'
+            arguments: --configuration Release
 
-  - job: BuildAngular
-    displayName: 'Build Angular 12 Application'
-    pool:
-      vmImage: 'windows-latest'
-    steps:
-    - task: NodeTool@0
-      inputs:
-        versionSpec: '12.x'
-        checkLatest: true
-      displayName: 'Install Node.js'
+        - task: DotNetCoreCLI@2
+          displayName: Test
+          inputs:
+            command: test
+            projects: '*.sln'
+            arguments: '--configuration $(BuildConfiguration)'
+       
+        - task: DotNetCoreCLI@2
+          displayName: 'Publish the project - $(buildConfiguration)'
+          inputs:
+            command: 'publish'
+            projects: '**/*.csproj'
+            publishWebProjects: false
+            arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)'
+            zipAfterPublish: true
 
-    - script: |
-        npm install -g @angular/cli
-        npm install
-        ng build --prod
-      displayName: 'Build Angular 12 Application'
-
-- stage: Deploy
-  jobs:
-  - job: DeployApp
-    displayName: 'Deploy Application to Azure'
-    pool:
-      vmImage: 'windows-latest'
-    steps:
-    - task: AzureRmWebAppDeployment@4
-      inputs:
-        azureSubscription: 'YourAzureServiceConnectionName'
-        appType: 'webApp'
-        WebAppName: 'YourAzureWebAppName'
-        packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.zip'
-        enableCustomDeployment: true
-      displayName: 'Deploy to Azure App Service'
-
+        - publish: '$(Build.ArtifactStagingDirectory)'
+          artifact: drop
