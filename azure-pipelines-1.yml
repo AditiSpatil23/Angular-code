@@ -1,0 +1,64 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildDotNet
+    displayName: 'Build .NET Framework Application'
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        installationPath: $(Agent.ToolsDirectory)/dotnet
+        version: '4.x'  # Use the desired .NET Framework version
+      displayName: 'Use .NET Framework SDK'
+
+    - script: |
+        nuget restore YourSolution.sln
+        msbuild YourSolution.sln /p:Configuration=Release /p:Platform="Any CPU"
+      displayName: 'Build .NET Framework Application'
+
+  - job: BuildAngular
+    displayName: 'Build Angular 12 Application'
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '12.x'
+        checkLatest: true
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install -g @angular/cli
+        npm install
+        ng build --prod
+      displayName: 'Build Angular 12 Application'
+
+- stage: Deploy
+  jobs:
+  - job: DeployApp
+    displayName: 'Deploy Application to Azure'
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - task: AzureRmWebAppDeployment@4
+      inputs:
+        azureSubscription: 'YourAzureServiceConnectionName'
+        appType: 'webApp'
+        WebAppName: 'YourAzureWebAppName'
+        packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.zip'
+        enableCustomDeployment: true
+      displayName: 'Deploy to Azure App Service'
+
